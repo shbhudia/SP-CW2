@@ -105,10 +105,41 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <list>
+#include <thread>
 
 std::vector<std::string> dirs;
-std::unordered_map<std::string, std::list<std::string>> theTable;
-std::list<std::string> workQ;
+// std::unordered_map<std::string, std::list<std::string>> theTable;
+// std::list<std::string> workQ;
+
+struct theTable {
+  std::unordered_map<std::string, std::list<std::string>> theTable;
+};
+
+struct workQ {
+private:
+  std::mutex mutex; std::list<std::string> workQ;
+public:
+  void push(std::string str) {
+    std::unique_lock<std::mutex>lock(mutex);
+    workQ.push_back(str);
+  }
+  int get_size() {
+    std::unique_lock<std::mutex>lock(mutex);
+    return workQ.size();
+  }
+  std::string get_front() {
+    std::unique_lock<std::mutex>lock(mutex);
+    return workQ.front();
+  }
+  void pop_ft() {
+    std::unique_lock<std::mutex>lock(mutex);
+    workQ.pop_front();
+  }
+};
+
+// initialise structures
+struct theTable table;
+struct workQ wq;
 
 std::string dirName(const char * c_str) {
   std::string s = c_str; // s takes ownership of the string content by allocating memory for it
@@ -169,11 +200,11 @@ static void process(const char *file, std::list<std::string> *ll) {
     // 2bii. append file name to dependency list
     ll->push_back( {name} );
     // 2bii. if file name not already in table ...
-    if (theTable.find(name) != theTable.end()) { continue; }
+    if (table.theTable.find(name) != table.theTable.end()) { continue; }
     // ... insert mapping from file name to empty list in table ...
-    theTable.insert( { name, {} } );
+    table.theTable.insert( { name, {} } );
     // ... append file name to workQ
-    workQ.push_back( name );
+    wq.push( name );
   }
   // 3. close file
   fclose(fd);
@@ -191,7 +222,7 @@ static void printDependencies(std::unordered_set<std::string> *printed,
     std::string name = toProcess->front();
     toProcess->pop_front();
     // 3. lookup file in the table, yielding list of dependencies
-    std::list<std::string> *ll = &theTable[name];
+    std::list<std::string> *ll = &table.theTable[name];
     // 4. iterate over dependencies
     for (auto iter = ll->begin(); iter != ll->end(); iter++) {
       // 4a. if filename is already in the printed table, continue
@@ -247,27 +278,27 @@ int main(int argc, char *argv[]) {
     std::string obj = pair.first + ".o";
 
     // 3a. insert mapping from file.o to file.ext
-    theTable.insert( { obj, { argv[i] } } );
+    table.theTable.insert( { obj, { argv[i] } } );
     
     // 3b. insert mapping from file.ext to empty list
-    theTable.insert( { argv[i], { } } );
+    table.theTable.insert( { argv[i], { } } );
     
     // 3c. append file.ext on workQ
-    workQ.push_back( argv[i] );
+    wq.push( argv[i] );
   }
 
   // 4. for each file on the workQ
-  while ( workQ.size() > 0 ) {
-    std::string filename = workQ.front();
-    workQ.pop_front();
+  while ( wq.get_size() > 0 ) {
+    std::string filename = wq.get_front();
+    wq.pop_ft();
 
-    if (theTable.find(filename) == theTable.end()) {
+    if (table.theTable.find(filename) == table.theTable.end()) {
       fprintf(stderr, "Mismatch between table and workQ\n");
       return -1;
     }
 
     // 4a&b. lookup dependencies and invoke 'process'
-    process(filename.c_str(), &theTable[filename]);
+    process(filename.c_str(), &table.theTable[filename]);
   }
 
   // 5. for each file argument
