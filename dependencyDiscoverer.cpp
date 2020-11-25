@@ -112,9 +112,30 @@ std::vector<std::string> dirs;
 // std::list<std::string> workQ;
 
 struct theTable {
-  std::unordered_map<std::string, std::list<std::string>> theTable;
+private:
+  std::mutex mutex; std::unordered_map<std::string, std::list<std::string>> theTable;
+public:
+  std::unordered_map<std::string, std::list<std::string>>::const_iterator thread_safe_find(std::string key) {
+    std::unique_lock<std::mutex>lock(mutex);
+    return theTable.find(key);
+  }
+  std::unordered_map<std::string, std::list<std::string>>::const_iterator thread_safe_end() {
+    std::unique_lock<std::mutex>lock(mutex);
+    return theTable.end();
+  }
+  void thread_safe_insert(std::pair<std::string, std::list<std::string>> new_elem) {
+    std::unique_lock<std::mutex>lock(mutex);
+    theTable.insert(new_elem);
+  }
+  std::list<std::string>& thread_safe_lookup(std::string name) {
+    std::unique_lock<std::mutex>lock(mutex);
+    // std::list<std::string> *temp = &theTable[name];
+    // return temp;
+    return theTable[name];
+  }
 };
 
+// thread safe workQ
 struct workQ {
 private:
   std::mutex mutex; std::list<std::string> workQ;
@@ -200,9 +221,9 @@ static void process(const char *file, std::list<std::string> *ll) {
     // 2bii. append file name to dependency list
     ll->push_back( {name} );
     // 2bii. if file name not already in table ...
-    if (table.theTable.find(name) != table.theTable.end()) { continue; }
+    if (table.thread_safe_find(name) != table.thread_safe_end()) { continue; }
     // ... insert mapping from file name to empty list in table ...
-    table.theTable.insert( { name, {} } );
+    table.thread_safe_insert( { name, {} } );
     // ... append file name to workQ
     wq.push( name );
   }
@@ -222,7 +243,8 @@ static void printDependencies(std::unordered_set<std::string> *printed,
     std::string name = toProcess->front();
     toProcess->pop_front();
     // 3. lookup file in the table, yielding list of dependencies
-    std::list<std::string> *ll = &table.theTable[name];
+    auto temp = table.thread_safe_lookup(name);
+    std::list<std::string> *ll = &temp;
     // 4. iterate over dependencies
     for (auto iter = ll->begin(); iter != ll->end(); iter++) {
       // 4a. if filename is already in the printed table, continue
@@ -278,10 +300,10 @@ int main(int argc, char *argv[]) {
     std::string obj = pair.first + ".o";
 
     // 3a. insert mapping from file.o to file.ext
-    table.theTable.insert( { obj, { argv[i] } } );
+    table.thread_safe_insert( { obj, { argv[i] } } );
     
     // 3b. insert mapping from file.ext to empty list
-    table.theTable.insert( { argv[i], { } } );
+    table.thread_safe_insert( { argv[i], { } } );
     
     // 3c. append file.ext on workQ
     wq.push( argv[i] );
@@ -292,13 +314,15 @@ int main(int argc, char *argv[]) {
     std::string filename = wq.get_front();
     wq.pop_ft();
 
-    if (table.theTable.find(filename) == table.theTable.end()) {
+    if (table.thread_safe_find(filename) == table.thread_safe_end()) {
       fprintf(stderr, "Mismatch between table and workQ\n");
       return -1;
     }
 
     // 4a&b. lookup dependencies and invoke 'process'
-    process(filename.c_str(), &table.theTable[filename]);
+    auto temp2 = table.thread_safe_lookup(filename);
+    std::list<std::string> *temp = &temp2;
+    process(filename.c_str(), temp);
   }
 
   // 5. for each file argument
