@@ -1,3 +1,4 @@
+NUMBER OF THREADS: 4
 test/s_01.o: test/s_01.c i_60.h i_44.h i_46.h i_04.h i_51.h i_15.h i_33.h i_29.h i_16.h
 test/s_02.o: test/s_02.c i_02.h i_52.h i_51.h i_03.h i_41.h i_12.h i_46.h i_30.h i_07.h i_53.h i_49.h i_25.h
 test/s_03.o: test/s_03.c i_02.h i_52.h i_25.h i_53.h i_30.h i_03.h i_33.h i_49.h i_51.h i_10.h i_01.h i_46.h i_12.h i_07.h
