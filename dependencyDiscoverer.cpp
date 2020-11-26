@@ -107,31 +107,47 @@
 #include <list>
 #include <thread>
 
-std::vector<std::string> dirs;
-// std::unordered_map<std::string, std::list<std::string>> theTable;
-// std::list<std::string> workQ;
+// thread safe dirs
+struct dirs {
+private:
+  std::mutex mutex; std::vector<std::string> dirs;
+public:
+  int thread_safe_size() {
+    std::unique_lock<std::mutex>lock(mutex);
+    return dirs.size();
+  }
+  std::string thread_safe_lookup(int i) {
+    std::unique_lock<std::mutex>lock(mutex);
+    return dirs[i];
+  }
+  void thread_safe_push_back(std::string value) {
+    std::unique_lock<std::mutex> lock(mutex);
+    dirs.push_back(value);
+  }
+};
 
+// thread safe theTable
 struct theTable {
 private:
   std::mutex mutex; std::unordered_map<std::string, std::list<std::string>> theTable;
 public:
-  std::unordered_map<std::string, std::list<std::string>>::const_iterator thread_safe_find(std::string key) {
-    std::unique_lock<std::mutex>lock(mutex);
-    return theTable.find(key);
-  }
-  std::unordered_map<std::string, std::list<std::string>>::const_iterator thread_safe_end() {
-    std::unique_lock<std::mutex>lock(mutex);
-    return theTable.end();
-  }
   void thread_safe_insert(std::pair<std::string, std::list<std::string>> new_elem) {
     std::unique_lock<std::mutex>lock(mutex);
     theTable.insert(new_elem);
   }
-  std::list<std::string>& thread_safe_lookup(std::string name) {
+  std::list<std::string> *thread_safe_lookup(std::string name) {
     std::unique_lock<std::mutex>lock(mutex);
-    // std::list<std::string> *temp = &theTable[name];
-    // return temp;
-    return theTable[name];
+    return &theTable[name];
+  }
+  bool two_bii(std::string name) {
+    std::unique_lock<std::mutex>lock(mutex);
+    bool temp = theTable.find(name) != theTable.end();
+    return temp;
+  }
+  bool four(std::string filename) {
+    std::unique_lock<std::mutex>lock(mutex);
+    bool temp = theTable.find(filename) == theTable.end();
+    return temp;
   }
 };
 
@@ -159,6 +175,7 @@ public:
 };
 
 // initialise structures
+struct dirs drs;
 struct theTable table;
 struct workQ wq;
 
@@ -181,8 +198,8 @@ std::pair<std::string, std::string> parseFile(const char* c_file) {
 // open file using the directory search path constructed in main()
 static FILE *openFile(const char *file) {
   FILE *fd;
-  for (unsigned int i = 0; i < dirs.size(); i++) {
-    std::string path = dirs[i] + file;
+  for (unsigned int i = 0; i < drs.thread_safe_size(); i++) {
+    std::string path = drs.thread_safe_lookup(i) + file;
     fd = fopen(path.c_str(), "r");
     if (fd != NULL)
       return fd; // return the first file that successfully opens
@@ -221,7 +238,7 @@ static void process(const char *file, std::list<std::string> *ll) {
     // 2bii. append file name to dependency list
     ll->push_back( {name} );
     // 2bii. if file name not already in table ...
-    if (table.thread_safe_find(name) != table.thread_safe_end()) { continue; }
+    if (table.two_bii(name)) { continue; }
     // ... insert mapping from file name to empty list in table ...
     table.thread_safe_insert( { name, {} } );
     // ... append file name to workQ
@@ -243,8 +260,9 @@ static void printDependencies(std::unordered_set<std::string> *printed,
     std::string name = toProcess->front();
     toProcess->pop_front();
     // 3. lookup file in the table, yielding list of dependencies
-    auto temp = table.thread_safe_lookup(name);
-    std::list<std::string> *ll = &temp;
+    // auto temp_lookup = table.thread_safe_lookup(name);
+    // std::list<std::string> *ll = &temp_lookup;
+    std::list<std::string> *ll = table.thread_safe_lookup(name);
     // 4. iterate over dependencies
     for (auto iter = ll->begin(); iter != ll->end(); iter++) {
       // 4a. if filename is already in the printed table, continue
@@ -272,19 +290,19 @@ int main(int argc, char *argv[]) {
   int start = i;
 
   // 2. start assembling dirs vector
-  dirs.push_back( dirName("./") ); // always search current directory first
+  drs.thread_safe_push_back( dirName("./") ); // always search current directory first
   for (i = 1; i < start; i++) {
-    dirs.push_back( dirName(argv[i] + 2 /* skip -I */) );
+    drs.thread_safe_push_back( dirName(argv[i] + 2 /* skip -I */) );
   }
   if (cpath != NULL) {
     std::string str( cpath );
     std::string::size_type last = 0;
     std::string::size_type next = 0;
     while((next = str.find(":", last)) != std::string::npos) {
-      dirs.push_back( str.substr(last, next-last) );
+      drs.thread_safe_push_back( str.substr(last, next-last) );
       last = next + 1;
     }
-    dirs.push_back( str.substr(last) );
+    drs.thread_safe_push_back( str.substr(last) );
   }
   // 2. finished assembling dirs vector
 
@@ -314,15 +332,15 @@ int main(int argc, char *argv[]) {
     std::string filename = wq.get_front();
     wq.pop_ft();
 
-    if (table.thread_safe_find(filename) == table.thread_safe_end()) {
+    if (table.four(filename)) {
       fprintf(stderr, "Mismatch between table and workQ\n");
       return -1;
     }
 
     // 4a&b. lookup dependencies and invoke 'process'
-    auto temp2 = table.thread_safe_lookup(filename);
-    std::list<std::string> *temp = &temp2;
-    process(filename.c_str(), temp);
+    // auto temp_lookup2 = table.thread_safe_lookup(filename);
+    // std::list<std::string> *temp = &temp_lookup2;
+    process(filename.c_str(), table.thread_safe_lookup(filename));
   }
 
   // 5. for each file argument
