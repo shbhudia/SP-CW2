@@ -1,4 +1,13 @@
 /*
+ * Shayam Nitin Bhudia
+ * 2394138b
+ * SP Exercise 2
+ * This is my own work as defined in the Academic Ethics agreement I have signed.
+ */
+
+
+
+/*
  * usage: ./dependencyDiscoverer [-Idir] ... file.c|file.l|file.y ...
  *
  * processes the c/yacc/lex source file arguments, outputting the dependencies
@@ -99,6 +108,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <string>
 #include <vector>
@@ -106,6 +116,7 @@
 #include <unordered_set>
 #include <list>
 #include <thread>
+#include <iostream>
 
 // thread safe dirs
 struct dirs {
@@ -168,7 +179,7 @@ public:
     std::unique_lock<std::mutex>lock(mutex);
     return workQ.front();
   }
-  void pop_ft() {
+  void thread_safe_pop_front() {
     std::unique_lock<std::mutex>lock(mutex);
     workQ.pop_front();
   }
@@ -277,9 +288,40 @@ static void printDependencies(std::unordered_set<std::string> *printed,
   }
 }
 
+// handler lambda function for running the threads
+auto runProcesses = []() {
+  while ( wq.get_size() > 0 ) {
+    std::string filename = wq.get_front();
+    wq.thread_safe_pop_front();
+    // if (filename == "NULL") {
+    //   break;
+    // }
+    if (table.four(filename)) {
+      fprintf(stderr, "Mismatch between table and workQ\n");
+      break;
+    }
+
+    process(filename.c_str(), table.thread_safe_lookup(filename));
+  }
+};
+
 int main(int argc, char *argv[]) {
   // 1. look up CPATH in environment
   char *cpath = getenv("CPATH");
+  // look up the CRAWLER_THREADS in enviroment
+  char *numThreads_staging = getenv("CRAWLER_THREADS");
+  unsigned int numThreads = 1; // deafault number of threads is 1
+  // if CRAWLER_THREADS not found, set number of threads
+  if (numThreads_staging == NULL) {
+    numThreads = 6;
+    
+  }
+  // std::cout << "THIS IS A FLAG: " << numThreads << "\n";
+  // create vector of threads
+  std::vector<std::thread> threads;
+  // for (int i = 0; i < numThreads; ++i) {
+
+  // }
 
   // determine the number of -Idir arguments
   int i;
@@ -328,19 +370,68 @@ int main(int argc, char *argv[]) {
   }
 
   // 4. for each file on the workQ
-  while ( wq.get_size() > 0 ) {
-    std::string filename = wq.get_front();
-    wq.pop_ft();
+  // while ( wq.get_size() > 0 ) {
 
-    if (table.four(filename)) {
-      fprintf(stderr, "Mismatch between table and workQ\n");
-      return -1;
-    }
+  //   for (int i = 0; i < numThreads; ++i) {
+  //     std::string filename = wq.get_front();
+  //     wq.thread_safe_pop_front();
 
-    // 4a&b. lookup dependencies and invoke 'process'
-    // auto temp_lookup2 = table.thread_safe_lookup(filename);
-    // std::list<std::string> *temp = &temp_lookup2;
-    process(filename.c_str(), table.thread_safe_lookup(filename));
+  //     if (table.four(filename)) {
+  //       fprintf(stderr, "Mismatch between table and workQ\n");
+  //       return -1;
+  //     }
+
+  //     // 4a&b. lookup dependencies and invoke 'process'
+  //     // auto temp_lookup2 = table.thread_safe_lookup(filename);
+  //     // std::list<std::string> *temp = &temp_lookup2;
+  //     threads.emplace_back(process, filename.c_str(), table.thread_safe_lookup(filename));
+  //     // process(filename.c_str(), table.thread_safe_lookup(filename));
+  //   }
+  //   for(auto &thread : threads){
+  //     // if (thread.joinable()){
+  //       thread.join();
+  //     // }
+  //   }
+  //   unsigned int microsecond = 1000000;
+  //   usleep(1 * microsecond);//sleeps for 3 second
+  //   // for (int i = 0; i < numThreads; ++i) {
+  //   //   threads[i].join();
+  //   // }
+  // }
+  // auto doWork = []() {
+  //   while (true) {
+  //     std::string filename = wq.get_front();
+  //     wq.thread_safe_pop_front();
+  //     if (filename == "NULL") {
+  //       break;
+  //     }
+
+  //   }
+  // }
+  //   auto runProcesses = []() {
+  //   while ( wq.get_size() > 0 ) {
+  //     std::string filename = wq.get_front();
+  //     wq.thread_safe_pop_front();
+  //     // if (filename == "NULL") {
+  //     //   break;
+  //     // }
+  //     if (table.four(filename)) {
+  //       fprintf(stderr, "Mismatch between table and workQ\n");
+  //       break;
+  //     }
+
+  //     process(filename.c_str(), table.thread_safe_lookup(filename));
+  //   }
+  // };
+
+  // thread manager
+  // run the threads
+  for (int i = 0; i < numThreads; ++i) {
+    threads.push_back(std::thread(runProcesses));
+  }
+  // join the threads
+  for (int i = 0; i < numThreads; ++i) {
+    threads[i].join();
   }
 
   // 5. for each file argument
