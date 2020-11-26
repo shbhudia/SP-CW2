@@ -117,6 +117,7 @@
 #include <list>
 #include <thread>
 #include <iostream>
+#include <mutex>
 
 // thread safe dirs
 struct dirs {
@@ -291,7 +292,7 @@ auto runProcesses = []() {
   while ( wq.get_size() > 0 ) {
     std::string filename = wq.get_front();
     wq.thread_safe_pop_front();
-    
+
     if (table.four(filename)) {
       fprintf(stderr, "Mismatch between table and workQ\n");
       break;

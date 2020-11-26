@@ -39,7 +39,7 @@ test/s_38.o: test/s_38.c i_33.h
 test/s_39.o: test/s_39.c i_24.h
 test/s_40.o: test/s_40.c i_25.h i_33.h
 test/s_41.o: test/s_41.c i_43.h i_21.h i_24.h i_46.h i_04.h
-test/s_42.o: test/s_42.c i_04.h i_60.h i_44.h i_46.h i_51.h i_26.h i_21.h i_33.h i_29.h i_27.h
+test/s_42.o: test/s_42.c i_04.h i_60.h i_44.h i_46.h i_51.h i_26.h i_21.h i_33.h i_29.h
 test/s_43.o: test/s_43.c i_28.h i_33.h i_60.h i_04.h i_29.h
 test/s_44.o: test/s_44.c i_31.h i_09.h i_60.h i_13.h i_17.h i_51.h i_28.h i_45.h i_44.h i_33.h i_04.h i_29.h i_56.h i_46.h
 test/s_45.o: test/s_45.c i_33.h i_32.h i_35.h i_50.h i_55.h i_51.h i_28.h i_45.h i_44.h i_46.h i_56.h i_04.h
